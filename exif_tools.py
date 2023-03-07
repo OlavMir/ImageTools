@@ -2,14 +2,23 @@
 from exif import Image
 import pathlib
 import yaml
+from datetime import datetime
 
 class ImageInfo:
-    def __init__(self, name, time, lat, lon) -> None:
+    def __init__(self, name, time, latitude, latitude_ref, longitude, longitude_ref) -> None:
         self.name = name
         self.time = time
-        self.latitude = lat
-        self.longitude = lon
-        # self.lon_ref = lon_ref
+        self.timestamp = datetime.strptime(time, '%Y:%m:%d %H:%M:%S')
+        self.gps_tag = GpsTag(latitude, latitude_ref, longitude, longitude_ref)
+
+class GpsTag:
+    def __init__(self, latitude, latitude_ref, longitude, longitude_ref) -> None:
+        self.latitude = latitude
+        self.latitude_ref = latitude_ref
+        self.longitude = longitude
+        self.longitude_ref = longitude_ref
+        self.d_latitude = dms_coordinates_to_dd_coordinates(self.latitude, self.latitude_ref)
+        self.d_longitude = dms_coordinates_to_dd_coordinates(self.longitude, self.longitude_ref)
     
 
 def get_images_info() -> list[ImageInfo]:
@@ -17,33 +26,51 @@ def get_images_info() -> list[ImageInfo]:
     res = []
     with open("config.yaml", 'r') as ymlfile:
         config = yaml.safe_load(ymlfile)
-    imgDir = pathlib.Path(config.get('taged_images_folder'))
+    images_folder = config.get('taged_images_folder')
+    if not images_folder:
+        raise Exception("Empty images folder in config")
+    imgDir = pathlib.Path(images_folder)
     imgs = list(imgDir.rglob("*.jpg"))
     for img in imgs:
         imgInfo = get_info_from_image(img)
         if imgInfo:
             res.append(imgInfo)
+        # break
     print(f"Finish. {len(imgs)} read, {len(res)} has information")
     return res        
     
 
-def get_info_from_image(img) -> ImageInfo:
+def get_info_from_image(img, _print=False) -> ImageInfo:
     imginfo = None
     with open(img, "rb") as imgps:
         image = Image(imgps)
     if image.has_exif:
-        print_image_info(image=image)
+        if _print: print_image_info(image=image)
         imginfo = ImageInfo(
             name=str(img).split('\\')[-1].split('.')[0], 
-            time=f"{image.datetime_original}.{image.subsec_time_original} {image.get('offset_time', '')}",
-            lat=dms_coordinates_to_dd_coordinates(image.gps_latitude, image.gps_latitude_ref),
-            # lat_ref=image.gps_latitude_ref,
-            lon=dms_coordinates_to_dd_coordinates(image.gps_longitude, image.gps_longitude_ref)
-            # lon_ref=image.gps_longitude_ref
+            time=f"{image.datetime_original}",
+            latitude= image.gps_latitude,
+            latitude_ref=image.gps_latitude_ref,
+            longitude=image.gps_longitude,
+            longitude_ref=image.gps_longitude_ref
         )
     else:
-        print(f"\tdoes not contain any EXIF information.")
+        print(f"\tIn image {img} no data in EXIF.")
     return imginfo
+
+def set_gpstag_to_image(img, _gps_tag: GpsTag) -> None:
+    with open(img, "rb") as imgps:
+        image = Image(imgps)
+    image.gps_latitude = _gps_tag.latitude
+    image.gps_latitude_ref = _gps_tag.latitude_ref
+    image.gps_longitude = _gps_tag.longitude
+    image.gps_longitude_ref = _gps_tag.longitude_ref
+    _imar = img.split('.')
+    new_jpg = _imar[0]+'_gps.'+_imar[1]
+
+    with open(new_jpg, 'wb') as updated_image:
+        updated_image.write(image.get_file())
+    
 
 def print_image_info(image: Image) -> None:
     if image.has_exif:
@@ -58,19 +85,13 @@ def print_image_info(image: Image) -> None:
         print(f'\t type lat {type(image.gps_latitude)}')
         strlat = str(image.gps_latitude)
         print(f'\t str lat {strlat}')
-        # print(f"\tLatitude (DMS): {format_dms_coordinates(image.gps_latitude)} {image.gps_latitude_ref}")
-        # print(f"\tLongitude (DMS): {format_dms_coordinates(image.gps_longitude)} {image.gps_longitude_ref}\n")
+        print(f"\tLatitude (DMS): {format_dms_coordinates(image.gps_latitude)} {image.gps_latitude_ref}")
+        print(f"\tLongitude (DMS): {format_dms_coordinates(image.gps_longitude)} {image.gps_longitude_ref}\n")
         print(f"\tLatitude (DD): {dms_coordinates_to_dd_coordinates(image.gps_latitude, image.gps_latitude_ref)}")
         print(f"\tLongitude (DD): {dms_coordinates_to_dd_coordinates(image.gps_longitude, image.gps_longitude_ref)}\n")
-        # print(f"\tOS version: {image.get('software', 'Unknown')}\n")
-        # draw_map_for_location(
-        #     image.gps_latitude, 
-        #     image.gps_latitude_ref, 
-        #     image.gps_longitude,
-        #     image.gps_longitude_ref
-        # )       
+        print(f"\tOS version: {image.get('software', 'Unknown')}\n")     
     else:
-        print(f"\tdoes not contain any EXIF information.")
+        print(f"\tno data in EXIF.")
     
 
 def set_info_to_image():
@@ -95,3 +116,4 @@ def dms_coordinates_to_dd_coordinates(coordinates, coordinates_ref):
 
 def format_dms_coordinates(coordinates):
     return f"{coordinates[0]}° {coordinates[1]}\' {coordinates[2]}\""
+
