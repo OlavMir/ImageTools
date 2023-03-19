@@ -1,5 +1,7 @@
 import os
+from wrappers import try_func
 
+@try_func
 def get_files_list(root: str, endswith: tuple = None) -> list[str]:
     """
     getting all paths files from folder
@@ -15,4 +17,5 @@ def get_files_list(root: str, endswith: tuple = None) -> list[str]:
                     result.append(os.path.join(dirname, fname))
             else:
                 result.append(os.path.join(dirname, fname))
+    print(f"\t Load {len(result)} list paths")
     return result

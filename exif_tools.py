@@ -1,11 +1,12 @@
 
+from wrappers import try_func
 from exif import Image
-import pathlib
-import yaml
 from datetime import datetime
+from progress.bar import IncrementalBar
 
 class ImageInfo:
-    def __init__(self, name, time, latitude, latitude_ref, longitude, longitude_ref) -> None:
+    def __init__(self, name, image_path, time, latitude, latitude_ref, longitude, longitude_ref) -> None:
+        self.path = image_path
         self.name = name
         self.time = time
         self.timestamp = datetime.strptime(time, '%Y:%m:%d %H:%M:%S')
@@ -24,7 +25,7 @@ class GpsTag:
             self.d_latitude = None
             self.d_longitude = None
     
-
+@try_func
 def get_images_info(image_path_list: list[str]) -> list[ImageInfo]:
     """
     Get images information from list images 
@@ -34,33 +35,31 @@ def get_images_info(image_path_list: list[str]) -> list[ImageInfo]:
         try:
             imgInfo = get_info_from_image(image_path)
             if imgInfo:
-                res.append(imgInfo)
+                res.append(imgInfo)                
         except Exception as err:
-            print(f"Error getting info from image {image_path}: {err}")
-    print(f"Finish. {len(image_path_list)} read, {len(res)} has information")
+            pass
     return res        
     
 
-def get_info_from_image(img, _print=False) -> ImageInfo:
+def get_info_from_image(img_path, _print=False) -> ImageInfo:
     """
     Get information from exif.
     return: instanse ImageInfo
     """
     imginfo = None
-    with open(img, "rb") as imgps:
+    with open(img_path, "rb") as imgps:
         image = Image(imgps)
     if image.has_exif:
         if _print: print_image_info(image=image)
         imginfo = ImageInfo(
-            name=str(img).split('\\')[-1].split('.')[0], 
+            image_path=img_path,
+            name=str(img_path).split('\\')[-1].split('.')[0], 
             time=f"{image.datetime_original}",
             latitude= image.get('gps_latitude', None),
             latitude_ref=image.get('gps_latitude_ref', None),
             longitude=image.get('gps_longitude', None),
             longitude_ref=image.get('gps_longitude_ref', None)
         )
-    else:
-        print(f"\tIn image {img} no data in EXIF.")
     return imginfo
 
 def set_gpstag_to_image(img, _gps_tag: GpsTag) -> None:

@@ -1,4 +1,5 @@
 from exif_tools import ImageInfo
+from wrappers import try_func
 from datetime import datetime, timedelta
 from os.path import isfile
 import sqlite3    
@@ -22,22 +23,22 @@ class DBConnection(object):
         if self.__connection:
             return
         if isfile('gps_tags.db'):
-            self.__connection = sqlite3.connect('gps_tags.db')
+            self.__connection = sqlite3.connect('../gps_tags.db')
         else:
-            self.__connection = sqlite3.connect('gps_tags.db')
+            self.__connection = sqlite3.connect('../gps_tags.db')
             cursor = self.__connection.cursor()
             res = cursor.execute('''CREATE TABLE IF NOT EXISTS GPSTAGS
-                        (name TEXT, time TEXT, timestamp TIMESTAMP, latitude Decimal(8,6), longitude Decimal(9,6))''')
+                        (path TEXT, name TEXT, time TEXT, timestamp TIMESTAMP, latitude Decimal(8,6), longitude Decimal(9,6))''')
             res = cursor.fetchall()
-            self.__connection.commit()    
+            self.__connection.commit()  
 
     def insert_in_db(self, image_info: ImageInfo) -> None:
         cursor = self.__connection.cursor()
         if image_info.gps_tag.d_latitude and image_info.gps_tag.d_longitude:
-            cursor.execute(f"""insert into GPSTAGS values ('{image_info.name}', \
+            res = cursor.execute(f"""insert into GPSTAGS values ('{image_info.path}', '{image_info.name}', \
                                                         '{image_info.time}', '{image_info.timestamp}', '{image_info.gps_tag.d_latitude}', \
-                                                        '{image_info.gps_tag.d_longitude}');""") 
-            self.__connection.commit()  
+                                                        '{image_info.gps_tag.d_longitude}');""")
+            self.__connection.commit()
         return
 
     def get_db_data(self) -> list:
@@ -50,11 +51,10 @@ class DBConnection(object):
             print(line)
         return res
 
-    def get_db_images_names(self) -> list[str]:
+    def get_db_images_paths(self) -> list[str]:
         cursor = self.__connection.cursor()
-        cursor.execute('''SELECT * from GPSTAGS''')
-        res = cursor.fetchall()
-        return [info[0] for info in res]
+        cursor.execute('''SELECT path from GPSTAGS''')
+        return [x[0] for x in cursor.fetchall()]
 
     def get_from_db_gpstag_in_delta(self, time: str, delta_minutes: int):
         

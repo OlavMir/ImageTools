@@ -8,7 +8,8 @@ def try_func(f):
         time_started = datetime.now()
         try:
             print(f"start {f.__name__}")
-            res = f(*args, **kwargs)                
+            res = f(*args, **kwargs)    
+            return res            
         except Exception as e:
             print(f'{f.__name__} ERROR {str(e)} \n{traceback.format_exc()}\n')                
         finally:
